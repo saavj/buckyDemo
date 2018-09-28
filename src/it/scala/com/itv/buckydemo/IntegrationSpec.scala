@@ -5,24 +5,20 @@ import java.io.File
 import _root_.fs2.{Stream, async}
 import com.google.common.io.Files
 import com.itv.bucky.fs2._
-import com.itv.contentdelivery.deliverymetadatapopulator.configuration.Config
-import com.typesafe.config.ConfigFactory
 import java.net.URL
 
-import org.http4s.Uri
+import cats.effect.IO
+import com.itv.bucky.AmqpClientConfig
 import org.apache.qpid.server.store.MemoryMessageStore
 import org.apache.qpid.server.{Broker, BrokerOptions}
 import org.apache.qpid.util.FileUtils
-import org.http4s._
-import org.http4s.client.Client
-import org.http4s.client.blaze.Http1Client
 import org.scalatest.concurrent.Eventually
 import org.scalatest.{Assertion, Matchers, Suite}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-trait IntegrationSpec extends BaseIntegrationSpec with Matchers with Eventually {
+trait IntegrationSpec extends Matchers with Eventually {
 
   this: Suite =>
 
@@ -55,37 +51,14 @@ trait IntegrationSpec extends BaseIntegrationSpec with Matchers with Eventually 
 
   case class Application(amqpClient: IOAmqpClient)
 
-  def testFixture(f: Application => IO[Assertion]): Unit = {
-
-    def startServer(client: Client[IO], shutdown: async.mutable.Signal[IO, Boolean]) = IO {
-      Server.stream(List.empty, IO.unit).
-        interruptWhen(shutdown)
-        .compile.drain.unsafeRunAsync(_ => ())
-      eventually {
-        client.status(Request[IO](uri = baseUriWithPath("/_meta/ping"))).map(_.code shouldBe 200).unsafeRunSync()
-      }
-    }
-
-    def startRabbitMqStubServer() = IO {
-      val rabbitMqStubServer = new StubServer(15672)
-      rabbitMqStubServer.start()
-      whenHttp(rabbitMqStubServer)
-        .`match`(uri("/api/connections"))
-        .`then`(status(HttpStatus.OK_200), resourceContent("qpid-api-connections.json"))
-      rabbitMqStubServer
-    }
+  def testFixture(f: Application => IO[_]): Unit = {
 
     val runTest = for {
       shutdown <- async.signalOf[IO, Boolean](false)
       (broker, brokerTmpFolder) = startBroker()
-      httpClient <- Http1Client[IO]()
-      _ <- startServer(httpClient, shutdown)
-      rmqStub <- startRabbitMqStubServer()
-      result <- clientFrom(config.buckyConfig.broker).flatMap { amqpTestClient =>
+      result <- clientFrom(AmqpClientConfig("127.0.0.1", 5672, "guest", "guest")).flatMap { amqpTestClient =>
         Stream.eval(f(Application(amqpTestClient)))
       }.compile.last.attempt
-      _ <- IO(rmqStub.stop())
-      _ <- httpClient.shutdown
       _ <- shutdown.set(true)
       _ <- IO(broker.shutdown())
       _ <- IO(require(FileUtils.delete(brokerTmpFolder, true), s"Failed to delete $brokerTmpFolder"))
@@ -99,15 +72,3 @@ trait IntegrationSpec extends BaseIntegrationSpec with Matchers with Eventually 
     runTest.unsafeRunSync()
   }
 }
-
-trait BaseIntegrationSpec extends BaseSpec {
-
-  val port: Int
-
-  def baseUriWithPath(p: String): Uri = {
-    val path = if (p.startsWith("/")) p.drop(1) else p
-    Uri.unsafeFromString(s"http://localhost:$port/$path")
-  }
-
-}
-
