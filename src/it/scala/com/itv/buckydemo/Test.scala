@@ -35,15 +35,7 @@ class Test extends WordSpec with IntegrationSpec with StrictLogging {
       val publisher = app.amqpClient.publisherOf(publisherConfig)
       publisher.apply(
         """
-          |{
-          |  "event": "TranscodeComplete",
-          |  "details": {
-          |    "productionId": "13/330/444#03",
-          |    "job": {
-          |      "href": "http://localhost:7021/test/data"
-          |    }
-          |  }
-          |}
+          |{"Hello", "OK"}
         """.stripMargin
       )
     }

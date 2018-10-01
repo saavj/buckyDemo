@@ -12,6 +12,7 @@ import com.itv.bucky.AmqpClientConfig
 import org.apache.qpid.server.store.MemoryMessageStore
 import org.apache.qpid.server.{Broker, BrokerOptions}
 import org.apache.qpid.util.FileUtils
+import org.eclipse.jetty.http.HttpStatus
 import org.scalatest.concurrent.Eventually
 import org.scalatest.{Assertion, Matchers, Suite}
 
@@ -56,9 +57,11 @@ trait IntegrationSpec extends Matchers with Eventually {
     val runTest = for {
       shutdown <- async.signalOf[IO, Boolean](false)
       (broker, brokerTmpFolder) = startBroker()
+
       result <- clientFrom(AmqpClientConfig("127.0.0.1", 5672, "guest", "guest")).flatMap { amqpTestClient =>
         Stream.eval(f(Application(amqpTestClient)))
       }.compile.last.attempt
+
       _ <- shutdown.set(true)
       _ <- IO(broker.shutdown())
       _ <- IO(require(FileUtils.delete(brokerTmpFolder, true), s"Failed to delete $brokerTmpFolder"))
