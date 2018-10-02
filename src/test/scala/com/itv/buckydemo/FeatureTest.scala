@@ -6,21 +6,39 @@ import org.scalatest.{FlatSpec, Matchers}
 
 class FeatureTest extends FlatSpec with Matchers {
 
-  val publisher: WorldMessage => IO[Unit] = ???
+  var sideEffect: Option[String] = None
+  val publisher: WorldMessage => IO[Unit] = { _ =>
+    sideEffect = Option("Called")
+    IO(())
+  }
 
-  val okChecker: String => IO[Boolean] = ???
+  val okChecker: String => IO[Boolean] = { msg => if (msg == "Hello") IO(true) else IO(false) }
 
-  val okMessage = HelloMessage(???)
+  val okMessage = HelloMessage("Hello")
+  val notOkMessage = HelloMessage("...")
 
 
   "helloHandler" should "Ack ok messages" in {
+    var sideEffect: Option[String] = None
+    val publisher: WorldMessage => IO[Unit] = { _ =>
+      sideEffect = Option("Called")
+      IO(())
+    }
+
     val handler = new HelloHandler(publisher, okChecker)
-
-
-    //todo calling handler shouldBe Ack
+    handler.apply(okMessage).unsafeRunSync() shouldBe Ack
+    sideEffect shouldBe Some("Called")
   }
 
-//  it should "todo not ok messages" in {
+  it should "not ok messages" in {
+    var sideEffect: Option[String] = None
+    val publisher: WorldMessage => IO[Unit] = { _ =>
+      sideEffect = Option("Called")
+      IO(())
+    }
 
-//  }
+    val handler = new HelloHandler(publisher, okChecker)
+    handler.apply(notOkMessage).unsafeRunSync() shouldBe DeadLetter
+    sideEffect shouldBe None
+  }
 }
