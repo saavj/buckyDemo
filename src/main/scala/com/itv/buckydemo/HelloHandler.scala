@@ -3,26 +3,28 @@ package com.itv.buckydemo
 import cats.effect.IO
 import com.itv.bucky.{Ack, Requeue, RequeueConsumeAction, RequeueHandler}
 import com.itv.bucky.CirceSupport._
+import io.circe.generic.auto._
 
-case class HelloWorldMessage(string: String, ok: String)
-object HelloWorldMessage {
-  import io.circe.generic.semiauto._
-
-  implicit val encoder = deriveEncoder[HelloWorldMessage]
-  implicit val decoder = deriveDecoder[HelloWorldMessage]
-
-  implicit lazy val marshaller = marshallerFromEncodeJson[HelloWorldMessage]
-  implicit lazy val unmarshaller = unmarshallerFromDecodeJson[HelloWorldMessage]
+case class HelloMessage(string: String, ok: String)
+object HelloMessage {
+  implicit lazy val marshaller = marshallerFromEncodeJson[HelloMessage]
+  implicit lazy val unmarshaller = unmarshallerFromDecodeJson[HelloMessage]
 }
 
-class HelloHandler(publisher: HelloWorldMessage => IO[Unit], okChecker: String => IO[Boolean]) extends RequeueHandler[IO, HelloWorldMessage] {
+case class WorldMessage(string: String)
+object WorldMessage {
+  implicit lazy val marshaller = marshallerFromEncodeJson[WorldMessage]
+  implicit lazy val unmarshaller = unmarshallerFromDecodeJson[WorldMessage]
+}
 
-  def apply(message: HelloWorldMessage): IO[RequeueConsumeAction] =
+class HelloHandler(publisher: WorldMessage => IO[Unit], okChecker: String => IO[Boolean]) extends RequeueHandler[IO, HelloMessage] {
+
+  def apply(message: HelloMessage): IO[RequeueConsumeAction] =
     for {
-      ok <- okChecker(message.ok)
+      ok      <- okChecker(message.ok)
       action  <- if (ok) {
               println(s"OK message: $message")
-              publisher(message).map(_ => Ack)
+              publisher(WorldMessage(message.string)).map(_ => Ack)
             } else {
               println(s"NOT OK message: $message")
               IO.pure(Requeue)

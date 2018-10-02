@@ -7,16 +7,16 @@ import org.scalatest.{FlatSpec, Matchers}
 class FeatureTest extends FlatSpec with Matchers {
 
   var sideEffect: Option[String] = None
-  val publisher: HelloWorldMessage => IO[Unit] = _ => {
+  val publisher: WorldMessage => IO[Unit] = _ => {
     sideEffect = Some("effect")
     IO.pure(())
   }
 
   val okChecker: String => IO[Boolean] = _ => IO.pure(true)
 
-  val okHelloMessage = HelloWorldMessage("Hello Sofia", "ok")
+  val okHelloMessage = HelloMessage("Hello Sofia", "ok")
 
-  val notOkHelloMessage = HelloWorldMessage("Hello Sofia", "sad")
+  val notOkHelloMessage = HelloMessage("Hello Sofia", "sad")
 
   "helloHandler" should "Ack ok messages" in {
     val handler = new HelloHandler(publisher, okChecker)

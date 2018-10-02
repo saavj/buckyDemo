@@ -22,6 +22,9 @@ libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "3.0.5" % "test",
   "org.apache.qpid" % "qpid-broker" % "6.0.4" % "test,it",
   "org.typelevel" %% "cats-core" % "1.1.0",
-  "org.typelevel" %% "cats-effect" % "0.10.1"
+  "org.typelevel" %% "cats-effect" % "0.10.1",
+  "ch.qos.logback" % "logback-classic" % "1.2.3",
+  "net.logstash.logback" % "logstash-logback-encoder" % "5.2",
+  "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0"
 )
         

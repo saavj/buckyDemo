@@ -11,42 +11,47 @@ import com.itv.bucky.pattern.requeue.{RequeuePolicy, _}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-object Server extends App {
-
-  def rabbitStream(amqpClientConfig: AmqpClientConfig): Stream[IO, Unit] = IOAmqpClient.use(amqpClientConfig) { amqpClient =>
-
-    val publisher: Id[Publisher[IO, HelloWorldMessage]] = amqpClient.publisherOf[HelloWorldMessage](RmqConfig.publisherConfig)
-
-    val handler: Stream[IO, Unit] = rmqHandler(amqpClient)(
-      RmqConfig.queueName,
-      new HelloHandler(publisher.apply, _ => IO.pure(true))
-    )
-
-    DeclarationExecutor(RmqConfig.allDeclarations, amqpClient)
-
-    Stream.eval(IO(println("Initializing handler"))).flatMap( _ =>
-      Stream.eval(IO.unit)
-    )
-  }
-
-  private def rmqHandler[T: PayloadUnmarshaller](client: IOAmqpClient)(queueName: QueueName, handler: RequeueHandler[IO, T]): Stream[IO, Unit] =
-    RequeueOps(client)
-      .requeueHandlerOf[T](
-      queueName,
-      handler,
-      RequeuePolicy(maximumProcessAttempts = 10, 3.minute),
-      implicitly[PayloadUnmarshaller[T]]
-    )
-
-  val run = for {
-
-    _ <- rabbitStream
-    _ = println(s"Hello")
-
-  } yield ()
-
-  println("started")
-
-  run.compile.drain.unsafeRunSync()
-
-}
+//object Server extends App {
+//
+////  def run(amqpClientConfig: AmqpClientConfig) = {
+////
+////  }
+////
+//
+//  def rabbitStream: Stream[IO, Unit] = IOAmqpClient.use(AmqpClientConfig("127.0.0.1", 5672, "guest", "guest")) { amqpClient =>
+//
+//    val publisher: Id[Publisher[IO, WorldMessage]] = amqpClient.publisherOf[WorldMessage](RmqConfig.worldPublisherConfig)
+//
+//    val handler: Stream[IO, Unit] = rmqHandler(amqpClient)(
+//      RmqConfig.queueName,
+//      new HelloHandler(publisher.apply, _ => IO.pure(true))
+//    )
+//
+//    DeclarationExecutor(RmqConfig.allDeclarations, amqpClient)
+//
+//    Stream.eval(IO(println("Initializing handler"))).flatMap( _ =>
+//      Stream.eval(IO.unit)
+//    )
+//  }
+//
+//  private def rmqHandler[T: PayloadUnmarshaller](client: IOAmqpClient)(queueName: QueueName, handler: RequeueHandler[IO, T]): Stream[IO, Unit] =
+//    RequeueOps(client)
+//      .requeueHandlerOf[T](
+//      queueName,
+//      handler,
+//      RequeuePolicy(maximumProcessAttempts = 10, 3.minute),
+//      implicitly[PayloadUnmarshaller[T]]
+//    )
+//
+//  val run = for {
+//
+//    _ <- rabbitStream
+//    _ = println(s"Hello")
+//
+//  } yield ()
+//
+//  println("started")
+//
+//  run.compile.drain.unsafeRunSync()
+//
+//}
