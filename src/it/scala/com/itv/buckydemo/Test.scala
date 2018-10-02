@@ -13,50 +13,44 @@ import org.scalatest.{WordSpec, concurrent}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-class Test extends WordSpec with IntegrationSpec with StrictLogging {
+class Test extends WordSpec with IntegrationSpec with StrictLogging with Eventually {
 
-  implicit val ePatienceConfig: concurrent.Eventually.PatienceConfig = Eventually.PatienceConfig(5 seconds, 1 second)
+  override implicit val patienceConfig = PatienceConfig(5 seconds, 1 second)
 
   "apply" should {
 
     "consume a message, publish a message" in testFixture { app =>
 
-      DeclarationExecutor(RmqConfig.allDeclarations, app.amqpClient)
+      DeclarationExecutor(RmqConfig.allDecs, app.amqpClient)
 
-      // used to publish incoming message
-      val testPublisher = app.amqpClient.publisherOf(RmqConfig.helloPublisherConfig)
+      val testPublisher = app.amqpClient.publisherOf(RmqConfig.incomingPublisherConfig)
 
-      // the publisher to use in our handler
-      val ourPublisher = app.amqpClient.publisherOf(RmqConfig.worldPublisherConfig)
+      val ourPublisher = app.amqpClient.publisherOf(RmqConfig.outgoingPublisherConfig)
 
-      // The handler that we have created in our service
-      val ourHandler = new HelloHandler(ourPublisher, _ => IO.pure(true))
+      val ourHandler = new HelloHandler(ourPublisher, _ => IO(true))
 
-      // the handler and consumer for us to check we've finally published
-      val sinkHandler = new StubConsumeHandler[IO, Delivery]()
-      val testConsumer: Stream[IO, Unit] = app.amqpClient.consumer(RmqConfig.outgoingQueueName, sinkHandler)
+      val outgoingHandler = new StubConsumeHandler[IO, Delivery]()
+      val outgoingConsumer = app.amqpClient.consumer(RmqConfig.outgoingQueue.name, outgoingHandler)
 
-      // our real consumer
-      val incomingConsumer: Stream[IO, Unit] = rmqHandler(app.amqpClient)(
-        RmqConfig.incomingQueueName,
-        ourHandler
-      )
+      val incomingConsumer: Stream[IO, Unit] = rmqHandler(app.amqpClient)(RmqConfig.incomingQueue.name, ourHandler)
 
       incomingConsumer
-        .concurrently(testConsumer)
-        .compile.drain.unsafeRunAsync(_ => ())
+        .concurrently(outgoingConsumer)
+        .compile
+        .drain
+        .unsafeRunAsync(_ => ())
 
       for {
-        result <- testPublisher.apply(HelloMessage("hello", "ok"))
+        result <- testPublisher(HelloMessage("Hello"))
       } yield {
-        result shouldBe(): Unit
-        Eventually.eventually {
-          // checks HelloHandler has worked and published our ongoing message
-          sinkHandler.receivedMessages.size shouldBe 1
+        eventually {
+          result shouldBe ()
+          outgoingHandler.receivedMessages.size shouldBe 1
         }
-      }
 
+      }
     }
+
   }
 
   private def rmqHandler[T: PayloadUnmarshaller](client: IOAmqpClient)(queueName: QueueName, handler: RequeueHandler[IO, T]): Stream[IO, Unit] =

@@ -1,43 +1,36 @@
 package com.itv.buckydemo
 
-import com.itv.bucky.PublishCommandBuilder.publishCommandBuilder
 import com.itv.bucky._
-import com.itv.bucky.decl.{Declaration, DeclarationExecutor, Direct, Exchange}
+import com.itv.bucky.decl._
 import com.itv.bucky.pattern.requeue.requeueDeclarations
+import com.itv.bucky.PublishCommandBuilder.publishCommandBuilder
 
 object RmqConfig {
 
-  val exchangeName: ExchangeName = ExchangeName("helloworld")
+  val exchangeName = ExchangeName("helloworld")
 
-  // consuming
-  val incomingQueueName: QueueName = QueueName("hello")
-  val incomingRoutingKey: RoutingKey = RoutingKey("hello.message")
-  val incomingRequeueDeclaration: Iterable[Declaration] = requeueDeclarations(incomingQueueName, incomingRoutingKey)
+  val incomingRoutingKey = RoutingKey("hello")
+  val incomingQueue = Queue(QueueName("hello.queue"))
+  val incomingRequeueDeclarations = requeueDeclarations(incomingQueue.name, incomingRoutingKey)
 
+  val outgoingRoutingKey = RoutingKey("world")
+  val outgoingQueue = Queue(QueueName("world.queue"))
+  val outgoingRequeueDeclarations = requeueDeclarations(outgoingQueue.name, outgoingRoutingKey)
 
-  // publishing
-  val outgoingQueueName: QueueName = QueueName("world")
-  val outgoungRoutingKey: RoutingKey = RoutingKey("world.message")
-  val outgoingRequeueDeclaration: Iterable[Declaration] = requeueDeclarations(outgoingQueueName, outgoungRoutingKey)
+  val exchange = Exchange(exchangeName, exchangeType = Direct)
+    .binding(incomingRoutingKey -> incomingQueue.name)
+    .binding(outgoingRoutingKey -> outgoingQueue.name)
 
-  // bindings
-  val exchange: Exchange =
-    Exchange(exchangeName, exchangeType = Direct)
-      .binding(incomingRoutingKey -> incomingQueueName)
-      .binding(outgoungRoutingKey -> outgoingQueueName)
+  val incomingPublisherConfig = publishCommandBuilder(HelloMessage.marshaller)
+    .using(exchangeName)
+    .using(incomingRoutingKey)
+    .using(MessageProperties.persistentBasic.copy(contentType = Some(ContentType("application/json"))))
 
-  val helloPublisherConfig: PublishCommandBuilder.Builder[HelloMessage] =
-    publishCommandBuilder(HelloMessage.marshaller)
-      .using(exchangeName)
-      .using(incomingRoutingKey)
-      .using(MessageProperties.persistentBasic.copy(contentType = Some(ContentType("application/json"))))
+  val outgoingPublisherConfig = publishCommandBuilder(WorldMessage.marshaller)
+    .using(exchangeName)
+    .using(outgoingRoutingKey)
+    .using(MessageProperties.persistentBasic.copy(contentType = Some(ContentType("application/json"))))
 
-  val worldPublisherConfig: PublishCommandBuilder.Builder[WorldMessage] =
-    publishCommandBuilder(WorldMessage.marshaller)
-      .using(exchangeName)
-      .using(outgoungRoutingKey)
-      .using(MessageProperties.persistentBasic.copy(contentType = Some(ContentType("application/json"))))
+  val allDecs = List(exchange) ++ incomingRequeueDeclarations ++ outgoingRequeueDeclarations
 
-
-  val allDeclarations = List(exchange) ++ incomingRequeueDeclaration ++ outgoingRequeueDeclaration
 }

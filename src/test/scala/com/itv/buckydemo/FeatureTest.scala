@@ -7,29 +7,38 @@ import org.scalatest.{FlatSpec, Matchers}
 class FeatureTest extends FlatSpec with Matchers {
 
   var sideEffect: Option[String] = None
-  val publisher: WorldMessage => IO[Unit] = _ => {
-    sideEffect = Some("effect")
-    IO.pure(())
+  val publisher: WorldMessage => IO[Unit] = { _ =>
+    sideEffect = Option("Called")
+    IO(())
   }
 
-  val okChecker: String => IO[Boolean] = _ => IO.pure(true)
+  val okChecker: String => IO[Boolean] = { msg => if (msg == "Hello") IO(true) else IO(false) }
 
-  val okHelloMessage = HelloMessage("Hello Sofia", "ok")
+  val okMessage = HelloMessage("Hello")
+  val notOkMessage = HelloMessage("...")
 
-  val notOkHelloMessage = HelloMessage("Hello Sofia", "sad")
 
   "helloHandler" should "Ack ok messages" in {
-    val handler = new HelloHandler(publisher, okChecker)
+    var sideEffect: Option[String] = None
+    val publisher: WorldMessage => IO[Unit] = { _ =>
+      sideEffect = Option("Called")
+      IO(())
+    }
 
-    handler(okHelloMessage).unsafeRunSync() shouldBe Ack
-    sideEffect shouldBe Some("effect")
+    val handler = new HelloHandler(publisher, okChecker)
+    handler.apply(okMessage).unsafeRunSync() shouldBe Ack
+    sideEffect shouldBe Some("Called")
   }
 
-  it should "Requeue not ok messages" in {
-    val okChecker: String => IO[Boolean] = _ => IO.pure(false)
+  it should "not ok messages" in {
+    var sideEffect: Option[String] = None
+    val publisher: WorldMessage => IO[Unit] = { _ =>
+      sideEffect = Option("Called")
+      IO(())
+    }
 
     val handler = new HelloHandler(publisher, okChecker)
-
-    handler(notOkHelloMessage).unsafeRunSync() shouldBe Requeue
+    handler.apply(notOkMessage).unsafeRunSync() shouldBe DeadLetter
+    sideEffect shouldBe None
   }
 }
