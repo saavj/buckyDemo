@@ -5,7 +5,7 @@ import com.itv.bucky.{Ack, Requeue, RequeueConsumeAction, RequeueHandler}
 import com.itv.bucky.CirceSupport._
 import io.circe.generic.auto._
 
-case class HelloMessage(string: String, ok: String)
+case class HelloMessage(string: String)
 object HelloMessage {
   implicit lazy val marshaller = marshallerFromEncodeJson[HelloMessage]
   implicit lazy val unmarshaller = unmarshallerFromDecodeJson[HelloMessage]
@@ -17,17 +17,6 @@ object WorldMessage {
   implicit lazy val unmarshaller = unmarshallerFromDecodeJson[WorldMessage]
 }
 
-class HelloHandler(publisher: WorldMessage => IO[Unit], okChecker: String => IO[Boolean]) extends RequeueHandler[IO, HelloMessage] {
+class HelloHandler(publisher: WorldMessage => IO[Unit], okChecker: String => IO[Boolean]) {
 
-  def apply(message: HelloMessage): IO[RequeueConsumeAction] =
-    for {
-      ok      <- okChecker(message.ok)
-      action  <- if (ok) {
-              println(s"OK message: $message")
-              publisher(WorldMessage(message.string)).map(_ => Ack)
-            } else {
-              println(s"NOT OK message: $message")
-              IO.pure(Requeue)
-            }
-    } yield action
 }
